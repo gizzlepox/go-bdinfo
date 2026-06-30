@@ -104,13 +104,13 @@ func TestFileSetDescriptorBlockUsesLogicalVolumePartitionReference(t *testing.T)
 
 func TestDecodeLogicalVolumeContentsUseAsLongAD(t *testing.T) {
 	var contentsUse [16]byte
-	// long_ad: ExtentLength at 0:4, LBN at 4:8 of lb_addr (8:12 overall),
-	// partition reference at 12:14, implementation use at 14:16.
+	// long_ad: ExtentLength at 0:4, LBN at 4:8, partition reference at
+	// 8:10, implementation use at 10:16.
 	contentsUse[0] = 0x00
 	contentsUse[1] = 0x08
-	contentsUse[8] = 0x34
-	contentsUse[9] = 0x12
-	contentsUse[12] = 0x02
+	contentsUse[4] = 0x34
+	contentsUse[5] = 0x12
+	contentsUse[8] = 0x02
 
 	lbn, pref, ok := decodeLogicalVolumeContentsUse(contentsUse)
 	if !ok {

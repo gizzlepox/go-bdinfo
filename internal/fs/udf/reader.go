@@ -464,8 +464,8 @@ func decodeLogicalVolumeContentsUse(contentsUse [16]byte) (lbn uint32, pref uint
 		return 0, 0, false
 	}
 
-	lbn = binary.LittleEndian.Uint32(contentsUse[8:12])
-	pref = binary.LittleEndian.Uint16(contentsUse[12:14])
+	lbn = binary.LittleEndian.Uint32(contentsUse[4:8])
+	pref = binary.LittleEndian.Uint16(contentsUse[8:10])
 	if lbn == 0 {
 		return 0, pref, false
 	}
