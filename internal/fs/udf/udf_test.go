@@ -45,14 +45,16 @@ func TestDecodeString_8BitStopsAtNUL(t *testing.T) {
 func TestParsePartitionMaps_MetadataPartition(t *testing.T) {
 	// Partition map table bytes from a UDF 2.50+ BD-ROM (metadata partition map).
 	pm := []byte{
-		0x01, 0x06, 0x01, 0x00, 0x00, 0x00, // type 1, len 6, volseq=1, part=0
-		0x02, 0x40, 0x00, 0x00, // type 2, len 64, reserved
+		0x01, 0x06, 0x01, 0x00, 0x02, 0x00, // type 1, len 6, volseq=1, part=2
+		0x02, 0x40, // type 2, len 64
+		0x00, 0x00, // reserved
 		0x00, // EntityID flags
 		'*', 'U', 'D', 'F', ' ', 'M', 'e', 't', 'a', 'd', 'a', 't', 'a', ' ', 'P', 'a', 'r', 't', 'i', 't', 'i', 'o', 'n',
 		0x50, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // suffix (opaque)
-		// extent_ad(len=1, loc=0) for metadata file ICB location (common BD-ROM layout)
-		0x01, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, // volume sequence number
+		0x02, 0x00, // partition number
+		// MetadataFileLocation is a uint32 LBN at offset 40 from the map start.
+		0x78, 0x56, 0x34, 0x12,
 		// remaining fields (not used by go-bdinfo currently)
 		0x3f, 0xca, 0xb9, 0x00,
 		0xff, 0xff, 0xff, 0xff,
@@ -74,11 +76,51 @@ func TestParsePartitionMaps_MetadataPartition(t *testing.T) {
 	if r.metadataFileICB == nil {
 		t.Fatalf("metadataFileICB=nil want non-nil")
 	}
-	if got, want := r.metadataFileICB.ExtentLocation.LogicalBlockNumber, uint32(0); got != want {
+	if got, want := r.metadataFileICB.ExtentLocation.LogicalBlockNumber, uint32(0x12345678); got != want {
 		t.Fatalf("metadataFileICB lbn=%d want %d", got, want)
 	}
 	if got, want := r.metadataFileICB.ExtentLocation.PartitionReferenceNumber, uint16(0); got != want {
 		t.Fatalf("metadataFileICB pref=%d want %d", got, want)
+	}
+}
+
+func TestFileSetDescriptorBlockUsesLogicalVolumePartitionReference(t *testing.T) {
+	r := &Reader{
+		partitionStart:            100,
+		fileSetLocation:           77,
+		fileSetPartitionReference: 1,
+		partitionStarts:           map[uint16]uint32{5: 2000},
+		partitionMaps:             []partitionMap{{kind: partitionMapType1, partitionNumber: 0}, {kind: partitionMapType1, partitionNumber: 5}},
+	}
+
+	got, err := r.fileSetDescriptorBlock()
+	if err != nil {
+		t.Fatalf("fileSetDescriptorBlock err: %v", err)
+	}
+	if want := uint32(2077); got != want {
+		t.Fatalf("fileSetDescriptorBlock=%d want %d", got, want)
+	}
+}
+
+func TestDecodeLogicalVolumeContentsUseAsLongAD(t *testing.T) {
+	var contentsUse [16]byte
+	// long_ad: ExtentLength at 0:4, LBN at 4:8 of lb_addr (8:12 overall),
+	// partition reference at 12:14, implementation use at 14:16.
+	contentsUse[0] = 0x00
+	contentsUse[1] = 0x08
+	contentsUse[8] = 0x34
+	contentsUse[9] = 0x12
+	contentsUse[12] = 0x02
+
+	lbn, pref, ok := decodeLogicalVolumeContentsUse(contentsUse)
+	if !ok {
+		t.Fatalf("decodeLogicalVolumeContentsUse ok=false want true")
+	}
+	if want := uint32(0x1234); lbn != want {
+		t.Fatalf("lbn=%d want %d", lbn, want)
+	}
+	if want := uint16(2); pref != want {
+		t.Fatalf("pref=%d want %d", pref, want)
 	}
 }
 
