@@ -124,6 +124,25 @@ func TestDecodeLogicalVolumeContentsUseAsLongAD(t *testing.T) {
 	}
 }
 
+func TestReadEmbeddedDirectoryDataDecodesUCS2FileIdentifier(t *testing.T) {
+	name := []byte{16, 0, 'B', 0, 'D', 0, 'M', 0, 'V'}
+	data := make([]byte, 48)
+	data[18] = FileCharDirectory
+	data[19] = byte(len(name))
+	copy(data[38:], name)
+
+	dir := &Directory{reader: &Reader{}}
+	if err := dir.readEmbeddedDirectoryData(data); err != nil {
+		t.Fatalf("readEmbeddedDirectoryData err: %v", err)
+	}
+	if len(dir.entries) != 1 {
+		t.Fatalf("entries len=%d want 1", len(dir.entries))
+	}
+	if got, want := dir.getFileName(dir.entries[0]), "BDMV"; got != want {
+		t.Fatalf("dir name=%q want %q", got, want)
+	}
+}
+
 func TestExtentReader_ReadsAcrossExtents(t *testing.T) {
 	f, err := os.CreateTemp(t.TempDir(), "udf-extents-*")
 	if err != nil {
