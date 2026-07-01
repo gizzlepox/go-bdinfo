@@ -432,10 +432,17 @@ func (r *Reader) parsePartitionMaps(pm []byte, n uint32) error {
 
 	for _, m := range r.partitionMaps {
 		if m.kind == partitionMapType2 && m.isMetadata {
+			pref := uint16(0)
+			for j, pm2 := range r.partitionMaps {
+				if pm2.kind == partitionMapType1 && pm2.partitionNumber == m.partitionNumber {
+					pref = uint16(j)
+					break
+				}
+			}
 			icb := LongAD{
 				ExtentLocation: LBAddr{
 					LogicalBlockNumber:       m.metadataICBLBN,
-					PartitionReferenceNumber: 0, // metadata file lives in main partition map
+					PartitionReferenceNumber: pref,
 				},
 			}
 			r.metadataFileICB = &icb
